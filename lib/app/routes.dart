@@ -2,6 +2,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../features/auth/presentation/auth_controller.dart';
+import '../features/onboarding/presentation/onboarding_screen.dart';
+import '../features/onboarding/data/onboarding_provider.dart';
 import '../features/auth/presentation/login_screen.dart';
 import '../features/auth/presentation/role_access.dart';
 import '../features/auth/presentation/signup_screen.dart';
@@ -19,6 +21,7 @@ class AppRoutes {
 
   static const login = '/login';
   static const signup = '/signup';
+  static const onboarding = '/onboarding';
   static const dashboard = '/dashboard';
   static const products = '/products';
   static const pos = '/pos';
@@ -36,12 +39,19 @@ final appRouterProvider = Provider<GoRouter>((ref) {
   final router = GoRouter(
     initialLocation: AppRoutes.login,
     redirect: (context, state) {
-      if (auth.isLoading) {
-        return null;
-      }
+      if (auth.isLoading) return null;
 
       final path = state.uri.path;
       final user = auth.currentUser;
+
+      final onboarding = ref.watch(onboardingProvider);
+      final forceView = state.uri.queryParameters['force'] == 'true';
+
+      if (!onboarding.isReady) return null;
+
+      if (!onboarding.hasSeen && !forceView) {
+        return path == AppRoutes.onboarding ? null : AppRoutes.onboarding;
+      }
 
       if (user == null) {
         return path == AppRoutes.login || path == AppRoutes.signup
@@ -69,6 +79,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.signup,
         name: 'signup',
         builder: (context, state) => const SignupScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.onboarding,
+        name: 'onboarding',
+        builder: (context, state) => const OnboardingScreen(),
       ),
       ShellRoute(
         builder: (context, state, child) => AppShell(child: child),

@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../shared/models/app_user.dart';
 import '../../../shared/models/store_settings.dart';
 import '../../auth/presentation/auth_controller.dart';
 import '../data/store_settings_providers.dart';
 import '../data/store_settings_repository.dart';
+import '../../../app/routes.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -18,23 +20,49 @@ class SettingsScreen extends ConsumerWidget {
         user?.role == UserRole.owner ||
         user?.role == UserRole.admin ||
         user?.role == UserRole.manager;
+    final authNotifier = ref.read(authControllerProvider.notifier);
+
+    Future<void> confirmLogout() async {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) {
+          return AlertDialog(
+            title: const Text('Logout'),
+            content: const Text('Are you sure you want to log out?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('Logout'),
+              ),
+            ],
+          );
+        },
+      );
+
+      if (confirmed != true) {
+        return;
+      }
+
+      await authNotifier.logout();
+      if (context.mounted) {
+        context.go(AppRoutes.login);
+      }
+    }
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Settings'),
-        actions: [
-          IconButton(
-            tooltip: 'Logout',
-            onPressed: () => ref.read(authControllerProvider.notifier).logout(),
-            icon: const Icon(Icons.logout),
-          ),
-          const SizedBox(width: 8),
-        ],
-      ),
+      appBar: AppBar(title: const Text('Settings')),
       body: SafeArea(
         child: settings.when(
-          data: (data) =>
-              _SettingsContent(settings: data, user: user, canEdit: canEdit),
+          data: (data) => _SettingsContent(
+            settings: data,
+            user: user,
+            canEdit: canEdit,
+            onLogout: confirmLogout,
+          ),
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (error, _) => _SettingsError(message: error.toString()),
         ),
@@ -48,11 +76,13 @@ class _SettingsContent extends StatelessWidget {
     required this.settings,
     required this.user,
     required this.canEdit,
+    required this.onLogout,
   });
 
   final StoreSettings settings;
   final AppUser? user;
   final bool canEdit;
+  final Future<void> Function() onLogout;
 
   @override
   Widget build(BuildContext context) {
@@ -88,6 +118,28 @@ class _SettingsContent extends StatelessWidget {
         ),
         const SizedBox(height: 16),
         StoreSettingsForm(settings: settings, canEdit: canEdit),
+        const SizedBox(height: 24),
+        Card(
+          child: ListTile(
+            leading: const Icon(Icons.slideshow),
+            title: const Text('View Onboarding Again'),
+            subtitle: const Text('Replay the app introduction'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.go('${AppRoutes.onboarding}?force=true'),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Card(
+          child: ListTile(
+            leading: const Icon(Icons.logout, color: Colors.redAccent),
+            title: const Text('Logout'),
+            subtitle: const Text('Sign out and return to login screen'),
+            trailing: const Icon(Icons.chevron_right),
+            textColor: Colors.redAccent,
+            iconColor: Colors.redAccent,
+            onTap: onLogout,
+          ),
+        ),
       ],
     );
   }
